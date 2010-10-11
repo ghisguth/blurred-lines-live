@@ -1,11 +1,13 @@
 blurred-lines-live
 =======================
 
-This is small live wallpaper inspired by 1K demo "In the mist of web" (www.tylerdurden.net.ru).
+This is small live wallpaper inspired by 1K demo "In the mist of web"
+(www.tylerdurden.net.ru).
 
 Usage: Home->Menu->Wallpapers->Live Wallpapers
 
-Wallpaper should work properly on HTC Desire device. If you have problems on your device please email me.
+Wallpaper should work properly on HTC Desire device.
+If you have problems on your device please email me.
 
 Speed improvements may be introduced in further version.
 
@@ -13,3 +15,11 @@ Live Wallpaper Open GL support used from andenginelivewallpaperextensio project
 (nhttp://code.google.com/p/andenginelivewallpaperextension).
 Detailed information on GLSurfaceView adaption for 3D Live Wallpapers:
 http://www.rbgrn.net/content/354-glsurfaceview-adapted-3d-live-wallpapers
+
+
+Build instructions
+----------------------
+
+If you are using eclipse - simply import project.
+In case you are using ant: copy local.properties.example to local.properties file
+and edit sdk.path in it to point your android sdk installation directory.
