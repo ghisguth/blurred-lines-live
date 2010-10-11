@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wallpaper_lines">Blurred Lines</string>
+	<string name="app_name">Blurred Lines Live Wallpaper</string>
+	<string name="description">Blurred gray lines drawn on black background</string>
+</resources>

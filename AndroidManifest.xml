@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+      package="cxa.lineswallpaper"
+      android:versionName="1.0" android:versionCode="2">
+    <application android:icon="@drawable/icon" android:label="@string/app_name">
+
+        <service
+            android:label="@string/wallpaper_lines"
+            android:name=".Wallpaper"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/lines" />
+        </service>
+
+    </application>
+    <uses-sdk android:minSdkVersion="8" />
+    <uses-feature android:glEsVersion="0x00020000"/>
+    <uses-feature android:name="android.software.live_wallpaper" />
+
+</manifest>
