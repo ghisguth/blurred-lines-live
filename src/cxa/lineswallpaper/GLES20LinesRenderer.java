@@ -80,6 +80,7 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 
 	private int position_handle_;
 	private int texture_handle_;
+	private int texture_loc_;
 	private int line_MVP_matrix_handle_;
 
 	private int line_position_handle_;
@@ -236,14 +237,21 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 		surface_width_ = width;
 		surface_height_ = height;
 
-		framebuffer_width_ = width;
-		framebuffer_height_ = height;
-		/*
-		 * framebuffer_width_ = 1 << (int)(Math.log(width)/Math.log(2));
-		 * if(framebuffer_width_ == surface_width_) framebuffer_width_ >>= 1;
-		 * framebuffer_height_ = 1 << (int)(Math.log(height)/Math.log(2));
-		 * if(framebuffer_height_ == surface_height_) framebuffer_height_ >>= 1;
-		 */
+		// lets make framebuffer have power of 2 dimension
+		// and it should be less then display size
+		framebuffer_width_ = 1 << (int)(Math.log(width)/Math.log(2));
+		if(framebuffer_width_ == surface_width_) framebuffer_width_ >>= 1;
+		framebuffer_height_ = 1 << (int)(Math.log(height)/Math.log(2));
+		if(framebuffer_height_ == surface_height_) framebuffer_height_ >>= 1;
+		
+		// http://code.google.com/p/android/issues/detail?id=14835
+		// The size of the FBO should have  square size.		
+		if(framebuffer_height_ > framebuffer_width_) {
+			framebuffer_width_ = framebuffer_height_; 
+		} else if(framebuffer_width_ > framebuffer_height_) {
+			framebuffer_height_ = framebuffer_width_;			 
+		}
+		
 		updateTargetTexture(gl, target_texture_, framebuffer_width_,
 				framebuffer_height_);
 	}
@@ -265,6 +273,7 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 
 		GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
 		GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target_texture_);
+		GLES20.glUniform1i(texture_loc_,0);
 
 		triangle_vertices_.position(TRIANGLE_VERTICES_DATA_POS_OFFSET);
 		GLES20.glVertexAttribPointer(position_handle_, 3, GLES20.GL_FLOAT,
@@ -341,6 +350,9 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 			throw new RuntimeException(
 					"Could not get attrib location for aPosition");
 		}
+		
+		texture_loc_ = GLES20.glGetUniformLocation(program_, "sTexture");
+		checkGlError("glGetAttribLocation sTexture");
 
 		line_delta_handle_ = GLES20
 				.glGetUniformLocation(line_program_, "delta");
