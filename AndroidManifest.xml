@@ -13,6 +13,13 @@
             </intent-filter>
             <meta-data android:name="android.service.wallpaper" android:resource="@xml/lines" />
         </service>
+        
+        <activity
+            android:label="@string/wallpaper_settings"
+            android:name=".WallpaperSettings"            
+            android:exported="true">
+        </activity>
+        
 
     </application>
     <uses-sdk android:minSdkVersion="8" android:targetSdkVersion="8"/>

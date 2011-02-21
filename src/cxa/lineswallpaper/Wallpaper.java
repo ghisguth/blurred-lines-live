@@ -1,11 +1,15 @@
 package cxa.lineswallpaper;
 
+import java.util.prefs.Preferences;
+
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 
 import net.rbgrn.opengl.GLWallpaperService;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLSurfaceView.EGLConfigChooser;
 import android.opengl.GLSurfaceView.EGLContextFactory;
@@ -13,8 +17,12 @@ import android.util.Log;
 
 public class Wallpaper extends GLWallpaperService {
 	private static String TAG = "BlurredLinesLive";
-	private static final boolean DEBUG = true;
-	 
+	private static final boolean DEBUG = false;		
+	public static final String SHARED_PREFS_NAME="blurredlinessettings";
+	
+	private int backgroundInt_ = 0;
+	private int linesInt_ = 0xffffffff;
+	
 	private static class ContextFactory implements GLSurfaceView.EGLContextFactory {
         private static int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
         public EGLContext createContext(EGL10 egl, EGLDisplay display, EGLConfig eglConfig) {
@@ -235,13 +243,14 @@ public class Wallpaper extends GLWallpaperService {
 	class WallpaperEngine extends GLEngine {
 		private static final String TAG = "BlurredLinesLiveWallpaperEngine";
 
-		public WallpaperEngine() {
+		public WallpaperEngine(SharedPreferences preferences) {
 			super();
 
 			setEGLContextFactory(new ContextFactory());
 			setEGLConfigChooser(new ConfigChooser(5, 6, 5, 0, 16, 0));
 
 			GLES20LinesRenderer renderer = new GLES20LinesRenderer(null);
+			renderer.setSharedPreferences(preferences);
 			setRenderer(renderer);
 			setRenderMode(RENDERMODE_CONTINUOUSLY);
 		}
@@ -249,6 +258,6 @@ public class Wallpaper extends GLWallpaperService {
 
 	@Override
 	public Engine onCreateEngine() {
-		return new WallpaperEngine();
+		return new WallpaperEngine(this.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE));
 	}
 }

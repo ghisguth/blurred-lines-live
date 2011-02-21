@@ -8,6 +8,8 @@ import java.util.Random;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
@@ -61,8 +63,10 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 			+ "}\n";
 
 	private final String line_fragment_shader_ = "precision mediump float;\n"
-			+ "varying float vColor;\n" + "void main() {\n"
-			+ "  gl_FragColor = vec4(vColor,vColor,vColor,1);\n" + "}\n";
+			+ "uniform vec3 mColor;\n"
+			+ "varying float vColor;\n"			
+			+ "void main() {\n"
+			+ "  gl_FragColor = vec4(vColor,vColor,vColor,1) * vec4(mColor.x,mColor.y,mColor.z,1);\n" + "}\n";
 
 	private float[] MVP_matrix_ = new float[16];
 
@@ -86,6 +90,7 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 	private int line_position_handle_;
 
 	private int line_delta_handle_;
+	private int line_mColor_handle_;
 
 	private int target_texture_;
 
@@ -95,6 +100,16 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 	private int framebuffer_height_ = 256;
 	private int surface_width_ = 256;
 	private int surface_height_ = 256;
+	
+	private SharedPreferences preferences_;
+	private SettingsUpdater settingsUpdater_;
+	private float backgroundColorRed_ = 0.0f;
+	private float backgroundColorGreen_ = 0.0f;
+	private float backgroundColorBlue_ = 0.0f;
+	private float linesColorRed_ = 1.0f;
+	private float linesColorGreen_ = 1.0f;
+	private float linesColorBlue_ = 1.0f;
+	
 	private static String TAG = "GLES20LinesRenderer";
 
 	public GLES20LinesRenderer(Context context) {
@@ -117,6 +132,53 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 				.allocateDirect(line_data.length * FLOAT_SIZE_BYTES)
 				.order(ByteOrder.nativeOrder()).asFloatBuffer();
 		line_vertices_.put(line_data).position(0);
+		
+	}
+	
+	public void setSharedPreferences(SharedPreferences preferences)
+	{
+		settingsUpdater_ = new SettingsUpdater(this);
+		preferences_ = preferences;
+		preferences_.registerOnSharedPreferenceChangeListener(settingsUpdater_);
+		settingsUpdater_.onSharedPreferenceChanged(preferences_, null);
+	}
+	
+	private class SettingsUpdater implements SharedPreferences.OnSharedPreferenceChangeListener {
+		private GLES20LinesRenderer renderer_;
+		
+		public SettingsUpdater(GLES20LinesRenderer renderer)
+		{
+			renderer_ = renderer;
+		}
+		
+		@Override
+		public void onSharedPreferenceChanged(
+				SharedPreferences sharedPreferences, String key) {
+			try
+			{
+				int backgroundInt = sharedPreferences.getInt("backgroundColor", 0);
+				int linesInt = sharedPreferences.getInt("linesColor", -1);
+				Log.i(TAG, "PREF back = " + backgroundInt + " lines = " + linesInt);
+				renderer_.setColors(backgroundInt, linesInt);
+				
+			}
+			catch(final Exception e)
+			{
+				Log.e(TAG, "PREF init error: " + e);			
+			}
+		}
+	}
+	
+	public void setColors(int backgroundInt, int linesInt)
+	{	
+		float scale = 1.0f / 255.0f;
+		float scaleBackground = scale * 0.05f;
+		backgroundColorRed_ = scaleBackground * Color.red(backgroundInt);
+		backgroundColorGreen_ = scaleBackground * Color.green(backgroundInt);
+		backgroundColorBlue_ = scaleBackground * Color.blue(backgroundInt);
+		linesColorRed_ = scale * Color.red(linesInt);
+		linesColorGreen_ = scale * Color.green(linesInt);
+		linesColorBlue_ = scale * Color.blue(linesInt);	
 	}
 
 	private void checkGlError(String op) {
@@ -208,7 +270,7 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 	public void onDrawFrame(GL10 gl) {
 		// Ignore the passed-in GL10 interface, and use the GLES20
 		// class's static methods instead.
-		GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		GLES20.glClearColor(backgroundColorRed_, backgroundColorGreen_, backgroundColorBlue_, 1.0f);
 
 		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer_);
 		GLES20.glViewport(0, 0, framebuffer_width_, framebuffer_height_);
@@ -226,6 +288,11 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 	}
 	@Override
 	public void onSurfaceChanged(GL10 gl, int width, int height) {
+		// re-read settings
+		if(settingsUpdater_ != null && preferences_ != null) {
+			settingsUpdater_.onSharedPreferenceChanged(preferences_, null);
+		}
+		
 		// Ignore the passed-in GL10 interface, and use the GLES20
 		// class's static methods instead.
 		GLES20.glViewport(0, 0, width, height);
@@ -251,6 +318,8 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 		} else if(framebuffer_width_ > framebuffer_height_) {
 			framebuffer_height_ = framebuffer_width_;			 
 		}
+		
+		//Log.i("BL***","framebuffer_width_=" + framebuffer_width_+" framebuffer_height_="+framebuffer_height_);
 		
 		updateTargetTexture(gl, target_texture_, framebuffer_width_,
 				framebuffer_height_);
@@ -315,6 +384,7 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 		delta = getTimeDeltaByScale(1 * 25000L);
 
 		GLES20.glUniform1f(line_delta_handle_, delta);
+		GLES20.glUniform3f(line_mColor_handle_, linesColorRed_, linesColorGreen_, linesColorBlue_);
 		GLES20.glUniformMatrix4fv(line_MVP_matrix_handle_, 1, false,
 				MVP_matrix_, 0);
 		GLES20.glDrawArrays(GLES20.GL_LINES, 0, LINE_COUNT);
@@ -354,13 +424,20 @@ public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
 		texture_loc_ = GLES20.glGetUniformLocation(program_, "sTexture");
 		checkGlError("glGetAttribLocation sTexture");
 
-		line_delta_handle_ = GLES20
-				.glGetUniformLocation(line_program_, "delta");
+		line_delta_handle_ = GLES20.glGetUniformLocation(line_program_, "delta");
 		checkGlError("glGetAttribLocation delta");
 		if (line_delta_handle_ == -1) {
 			throw new RuntimeException(
 					"Could not get attrib location for delta");
 		}
+		
+		line_mColor_handle_ = GLES20.glGetUniformLocation(line_program_, "mColor");
+		checkGlError("glGetAttribLocation mColor");
+		if (line_mColor_handle_ == -1) {
+			throw new RuntimeException(
+					"Could not get attrib location for mColor");
+		}
+		
 
 		line_MVP_matrix_handle_ = GLES20.glGetUniformLocation(line_program_,
 				"uMVPMatrix");

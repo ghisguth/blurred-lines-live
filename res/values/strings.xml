@@ -3,4 +3,11 @@
     <string name="wallpaper_lines">Blurred Lines</string>
 	<string name="app_name">Blurred Lines Live Wallpaper</string>
 	<string name="description">Blurred gray lines drawn on black background</string>
+	<string name="wallpaper_settings">Settings</string>
+    <string name="wallpaper_settings_title">Select colors</string>
+    <string name="wallpaper_settings_summary">Choose background and foreground color</string>
+    <string name="settings_background_title">Background</string>
+    <string name="settings_background_summary">Color of the background</string>
+    <string name="settings_lines_title">Line color</string>
+    <string name="settings_lines_summary">Color of the lines</string>    
 </resources>
