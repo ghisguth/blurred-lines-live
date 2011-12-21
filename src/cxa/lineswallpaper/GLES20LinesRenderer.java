@@ -15,8 +15,9 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.SystemClock;
 import android.util.Log;
+import net.rbgrn.android.glwallpaperservice.GLWallpaperService;
 
-public class GLES20LinesRenderer implements GLSurfaceView.Renderer {
+public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 
 	private static final int FLOAT_SIZE_BYTES = 4;
 

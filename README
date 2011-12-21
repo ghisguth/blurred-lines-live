@@ -12,9 +12,10 @@ If you have problems on your device please email me.
 Speed improvements may be introduced in further version.
 
 Live Wallpaper Open GL support used from andenginelivewallpaperextensio project
-(nhttp://code.google.com/p/andenginelivewallpaperextension).
+(http://code.google.com/p/andenginelivewallpaperextension).
 Detailed information on GLSurfaceView adaption for 3D Live Wallpapers:
 http://www.rbgrn.net/content/354-glsurfaceview-adapted-3d-live-wallpapers
+GLWallpaperService imported from https://github.com/markfguerra/GLWallpaperService
 Settings code based on https://github.com/JakeWharton/SnakeWallpaper project.
 
 Build instructions

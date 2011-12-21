@@ -7,12 +7,11 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 
-import net.rbgrn.opengl.GLWallpaperService;
+import net.rbgrn.android.glwallpaperservice.GLWallpaperService;
+import net.rbgrn.android.glwallpaperservice.EGLContextFactory;
+import net.rbgrn.android.glwallpaperservice.EGLConfigChooser;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.opengl.GLSurfaceView;
-import android.opengl.GLSurfaceView.EGLConfigChooser;
-import android.opengl.GLSurfaceView.EGLContextFactory;
 import android.util.Log;
 
 public class Wallpaper extends GLWallpaperService {
@@ -20,10 +19,7 @@ public class Wallpaper extends GLWallpaperService {
 	private static final boolean DEBUG = false;		
 	public static final String SHARED_PREFS_NAME="blurredlinessettings";
 	
-	private int backgroundInt_ = 0;
-	private int linesInt_ = 0xffffffff;
-	
-	private static class ContextFactory implements GLSurfaceView.EGLContextFactory {
+	private static class ContextFactory implements EGLContextFactory {
         private static int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
         public EGLContext createContext(EGL10 egl, EGLDisplay display, EGLConfig eglConfig) {
             Log.w(TAG, "creating OpenGL ES 2.0 context");
@@ -46,7 +42,7 @@ public class Wallpaper extends GLWallpaperService {
         }
     }
 
-    private static class ConfigChooser implements GLSurfaceView.EGLConfigChooser {
+    private static class ConfigChooser implements EGLConfigChooser {
 
         public ConfigChooser(int r, int g, int b, int a, int depth, int stencil) {
             mRedSize = r;
@@ -240,7 +236,7 @@ public class Wallpaper extends GLWallpaperService {
     }
 	
 
-	class WallpaperEngine extends GLEngine {
+	class WallpaperEngine extends GLWallpaperService.GLEngine {
 		private static final String TAG = "BlurredLinesLiveWallpaperEngine";
 
 		public WallpaperEngine(SharedPreferences preferences) {
