@@ -11,7 +11,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.opengl.GLES20;
-import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.SystemClock;
 import android.util.Log;
@@ -45,29 +44,32 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 			+ "  vTextureCoord = aTextureCoord;\n" + "}\n";
 
 	private final String fragment_shader_ = "precision mediump float;\n"
+			+ "uniform float blur;\n"
 			+ "varying vec2 vTextureCoord;\n"
 			+ "uniform sampler2D sTexture;\n"
 			+ "void main() {\n"
-			+ "  gl_FragColor = texture2D(sTexture, vTextureCoord) * vec4(1,1,1,0.86);\n"
+			+ "  gl_FragColor = texture2D(sTexture, vTextureCoord) * vec4(1,1,1,blur);\n"
 			+ "}\n";
 
 	private final String line_vertex_shader_ = "uniform mat4 uMVPMatrix;\n"
 			+ "uniform float delta;\n"
+			+ "uniform float brightness;\n"
 			+ "attribute vec4 aPosition;\n"
 			+ "varying float vColor;\n"
 			+ "void main() {\n"
 			+ "  float z = aPosition.z + delta;\n"
 			+ "  if(z > 1.0)\n"
 			+ "    z = z - 1.0;\n"
-			+ "  vColor = 0.15 * z;\n"
+			+ "  vColor = brightness * z;\n"
 			+ "  gl_Position = uMVPMatrix * vec4(aPosition.x, aPosition.y, z, aPosition.w);\n"
 			+ "}\n";
 
 	private final String line_fragment_shader_ = "precision mediump float;\n"
 			+ "uniform vec3 mColor;\n"
-			+ "varying float vColor;\n"			
+			+ "varying float vColor;\n"
 			+ "void main() {\n"
-			+ "  gl_FragColor = vec4(vColor,vColor,vColor,1) * vec4(mColor.x,mColor.y,mColor.z,1);\n" + "}\n";
+			+ "  gl_FragColor = vec4(vColor,vColor,vColor,1) * vec4(mColor.x,mColor.y,mColor.z,1);\n"
+			+ "}\n";
 
 	private float[] MVP_matrix_ = new float[16];
 
@@ -92,16 +94,19 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 
 	private int line_delta_handle_;
 	private int line_mColor_handle_;
+	private int line_brightness_handle_;
 
-	private int target_texture_;
+	private int blur_handle_;
 
-	private int framebuffer_;
+	private int target_texture_index_ = 0;
+	private int[] target_texture_;
+	private int[] framebuffer_;
 
 	private int framebuffer_width_ = 256;
 	private int framebuffer_height_ = 256;
 	private int surface_width_ = 256;
 	private int surface_height_ = 256;
-	
+
 	private SharedPreferences preferences_;
 	private SettingsUpdater settingsUpdater_;
 	private float backgroundColorRed_ = 0.0f;
@@ -110,7 +115,16 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 	private float linesColorRed_ = 1.0f;
 	private float linesColorGreen_ = 1.0f;
 	private float linesColorBlue_ = 1.0f;
+	private float blur_ = 0.86f;
+	private float blurFactor_ = 1.0f;
+	private float brightness_ = 0.15f;
+	private float brightnessFactor_ = 1.0f;
+	private float lineWidth_ = 1.0f;
+	private float lineWidthFactor_ = 1.0f;
+	private float rotationSpeedFactor_ = 1.0f;
 	
+	private boolean resetFramebuffers_ = false;
+
 	private static String TAG = "GLES20LinesRenderer";
 
 	public GLES20LinesRenderer(Context context) {
@@ -133,45 +147,54 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 				.allocateDirect(line_data.length * FLOAT_SIZE_BYTES)
 				.order(ByteOrder.nativeOrder()).asFloatBuffer();
 		line_vertices_.put(line_data).position(0);
-		
+
 	}
-	
-	public void setSharedPreferences(SharedPreferences preferences)
-	{
+
+	public void setSharedPreferences(SharedPreferences preferences) {
 		settingsUpdater_ = new SettingsUpdater(this);
 		preferences_ = preferences;
 		preferences_.registerOnSharedPreferenceChangeListener(settingsUpdater_);
 		settingsUpdater_.onSharedPreferenceChanged(preferences_, null);
 	}
-	
-	private class SettingsUpdater implements SharedPreferences.OnSharedPreferenceChangeListener {
+
+	private class SettingsUpdater implements
+			SharedPreferences.OnSharedPreferenceChangeListener {
 		private GLES20LinesRenderer renderer_;
-		
-		public SettingsUpdater(GLES20LinesRenderer renderer)
-		{
+
+		public SettingsUpdater(GLES20LinesRenderer renderer) {
 			renderer_ = renderer;
 		}
-		
+
 		@Override
 		public void onSharedPreferenceChanged(
 				SharedPreferences sharedPreferences, String key) {
-			try
-			{
-				int backgroundInt = sharedPreferences.getInt("backgroundColor", 0);
+			try {
+				int backgroundInt = sharedPreferences.getInt("backgroundColor",
+						0);
 				int linesInt = sharedPreferences.getInt("linesColor", -1);
-				Log.i(TAG, "PREF back = " + backgroundInt + " lines = " + linesInt);
-				renderer_.setColors(backgroundInt, linesInt);
+
+				int blurInt = sharedPreferences.getInt("blur", 127);
+				int brightnessInt = sharedPreferences.getInt("brightness", 127);
+				int lineWidthInt = sharedPreferences.getInt("linewidth", 127);
+				int rotationSpeedInt = sharedPreferences.getInt("rotationspeed", 127);
 				
-			}
-			catch(final Exception e)
-			{
-				Log.e(TAG, "PREF init error: " + e);			
+
+				Log.i(TAG, "PREF back = " + backgroundInt + " lines = "
+						+ linesInt + " blur = " + blurInt + " brightness = "
+						+ brightnessInt + " linewidth = " + lineWidthInt + " rotation = " + rotationSpeedInt);
+				renderer_.setColors(backgroundInt, linesInt);
+				renderer_.setBlur(blurInt);
+				renderer_.setBrightness(brightnessInt);
+				renderer_.setLineWidth(lineWidthInt);
+				renderer_.setRotationSpeed(rotationSpeedInt);				
+
+			} catch (final Exception e) {
+				Log.e(TAG, "PREF init error: " + e);
 			}
 		}
 	}
-	
-	public void setColors(int backgroundInt, int linesInt)
-	{	
+
+	public void setColors(int backgroundInt, int linesInt) {
 		float scale = 1.0f / 255.0f;
 		float scaleBackground = scale * 0.05f;
 		backgroundColorRed_ = scaleBackground * Color.red(backgroundInt);
@@ -179,8 +202,39 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		backgroundColorBlue_ = scaleBackground * Color.blue(backgroundInt);
 		linesColorRed_ = scale * Color.red(linesInt);
 		linesColorGreen_ = scale * Color.green(linesInt);
-		linesColorBlue_ = scale * Color.blue(linesInt);	
+		linesColorBlue_ = scale * Color.blue(linesInt);
 	}
+
+	public float getScaledFactor(int value, float multiplier) {
+		float scale = 1.0f / 127.0f;
+		float scaledValue = scale * (value - 127) * multiplier;
+		float result = (float) Math.exp(scaledValue);
+		Log.i(TAG, "setLineWidth value = " + value + " scaledValue = "
+				+ scaledValue + " result = " + result);
+		return result;
+	}
+
+	public void setBlur(int value) {
+		blurFactor_ = getScaledFactor(value, 0.125f);
+	}
+
+	public void setBrightness(int value) {
+		brightnessFactor_ = getScaledFactor(value, 1.0f);
+	}
+
+	public void setLineWidth(int value) {
+		lineWidthFactor_ = getScaledFactor(value, 1.0f);
+
+		if (lineWidthFactor_ < 0.01f) {
+			lineWidthFactor_ = 0.01f;
+		}
+	}
+	
+	public void setRotationSpeed(int value) {
+		rotationSpeedFactor_ = getScaledFactor(value, 1.0f);
+	}
+	
+	
 
 	private void checkGlError(String op) {
 		int error;
@@ -189,6 +243,7 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 			throw new RuntimeException(op + ": glError " + error);
 		}
 	}
+
 	private int createFrameBuffer(GL10 gl, int width, int height,
 			int targetTextureId) {
 		int framebuffer;
@@ -208,6 +263,7 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 		return framebuffer;
 	}
+
 	private int createProgram(String vertexSource, String fragmentSource) {
 		int vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexSource);
 		if (vertexShader == 0) {
@@ -237,6 +293,7 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		}
 		return program;
 	}
+
 	private int createTargetTexture(GL10 gl, int width, int height) {
 		int texture;
 		int[] textures = new int[1];
@@ -245,12 +302,14 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		updateTargetTexture(gl, texture, width, height);
 		return texture;
 	}
+
 	float getTimeDeltaByScale(long scale) {
 		if (scale < 1)
 			return 0.0f;
 		long time = SystemClock.uptimeMillis() % scale;
 		return (float) ((int) time) / (float) scale;
 	}
+
 	private int loadShader(int shaderType, String source) {
 		int shader = GLES20.glCreateShader(shaderType);
 		if (shader != 0) {
@@ -267,33 +326,45 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		}
 		return shader;
 	}
+
 	@Override
 	public void onDrawFrame(GL10 gl) {
 		// Ignore the passed-in GL10 interface, and use the GLES20
 		// class's static methods instead.
-		GLES20.glClearColor(backgroundColorRed_, backgroundColorGreen_, backgroundColorBlue_, 1.0f);
+		GLES20.glClearColor(backgroundColorRed_, backgroundColorGreen_,
+				backgroundColorBlue_, 1.0f);
 
-		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer_);
+		if(resetFramebuffers_) {
+			resetFramebuffers_ = false;
+			
+			GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer_[1 - target_texture_index_]);
+			GLES20.glViewport(0, 0, framebuffer_width_, framebuffer_height_);
+			GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+		}
+		
+		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer_[target_texture_index_]);
 		GLES20.glViewport(0, 0, framebuffer_width_, framebuffer_height_);
 		GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-		
-		renderBlurTexture();
+
+		renderBlurTexture(1 - target_texture_index_);
 		renderLines();
-		
+
 		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 		GLES20.glViewport(0, 0, surface_width_, surface_height_);
 
 		GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-
-		renderBlurTexture();
+		renderBlurTexture(target_texture_index_);
+		
+		target_texture_index_ = 1 - target_texture_index_; 
 	}
+
 	@Override
 	public void onSurfaceChanged(GL10 gl, int width, int height) {
 		// re-read settings
-		if(settingsUpdater_ != null && preferences_ != null) {
+		if (settingsUpdater_ != null && preferences_ != null) {
 			settingsUpdater_.onSharedPreferenceChanged(preferences_, null);
 		}
-		
+
 		// Ignore the passed-in GL10 interface, and use the GLES20
 		// class's static methods instead.
 		GLES20.glViewport(0, 0, width, height);
@@ -307,23 +378,30 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 
 		// lets make framebuffer have power of 2 dimension
 		// and it should be less then display size
-		framebuffer_width_ = 1 << (int)(Math.log(width)/Math.log(2));
-		if(framebuffer_width_ == surface_width_) framebuffer_width_ >>= 1;
-		framebuffer_height_ = 1 << (int)(Math.log(height)/Math.log(2));
-		if(framebuffer_height_ == surface_height_) framebuffer_height_ >>= 1;
-		
+		framebuffer_width_ = 1 << (int) (Math.log(width) / Math.log(2));
+		if (framebuffer_width_ == surface_width_)
+			framebuffer_width_ >>= 1;
+		framebuffer_height_ = 1 << (int) (Math.log(height) / Math.log(2));
+		if (framebuffer_height_ == surface_height_)
+			framebuffer_height_ >>= 1;
+
 		// http://code.google.com/p/android/issues/detail?id=14835
-		// The size of the FBO should have  square size.		
-		if(framebuffer_height_ > framebuffer_width_) {
-			framebuffer_width_ = framebuffer_height_; 
-		} else if(framebuffer_width_ > framebuffer_height_) {
-			framebuffer_height_ = framebuffer_width_;			 
+		// The size of the FBO should have square size.
+		if (framebuffer_height_ > framebuffer_width_) {
+			framebuffer_width_ = framebuffer_height_;
+		} else if (framebuffer_width_ > framebuffer_height_) {
+			framebuffer_height_ = framebuffer_width_;
 		}
 		
-		//Log.i("BL***","framebuffer_width_=" + framebuffer_width_+" framebuffer_height_="+framebuffer_height_);
-		
-		updateTargetTexture(gl, target_texture_, framebuffer_width_,
+		// Log.i("BL***","framebuffer_width_=" +
+		// framebuffer_width_+" framebuffer_height_="+framebuffer_height_);
+
+		updateTargetTexture(gl, target_texture_[0], framebuffer_width_,
 				framebuffer_height_);
+		updateTargetTexture(gl, target_texture_[1], framebuffer_width_,
+				framebuffer_height_);
+		target_texture_index_ = 0;
+		resetFramebuffers_ = true;		
 	}
 
 	@Override
@@ -337,21 +415,25 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		Matrix.setLookAtM(V_matrix_, 0, 0, 0, 1.0f, 0f, 0f, 0f, 0f, -1.0f, 0.0f);
 		Matrix.orthoM(quad_matrix_, 0, 0, 1, 0, 1, -1, 1);
 	}
-	private void renderBlurTexture() {
+
+	private void renderBlurTexture(int textureIndex) {
 		GLES20.glUseProgram(program_);
 		checkGlError("glUseProgram");
 
 		GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-		GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target_texture_);
-		GLES20.glUniform1i(texture_loc_,0);
+		GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target_texture_[textureIndex]);
+		GLES20.glUniform1i(texture_loc_, 0);
+		GLES20.glUniform1f(blur_handle_, blur_ * blurFactor_);
 
 		triangle_vertices_.position(TRIANGLE_VERTICES_DATA_POS_OFFSET);
 		GLES20.glVertexAttribPointer(position_handle_, 3, GLES20.GL_FLOAT,
 				false, TRIANGLE_VERTICES_DATA_STRIDE_BYTES, triangle_vertices_);
 		checkGlError("glVertexAttribPointer maPosition");
-		triangle_vertices_.position(TRIANGLE_VERTICES_DATA_UV_OFFSET);
+		
 		GLES20.glEnableVertexAttribArray(position_handle_);
 		checkGlError("glEnableVertexAttribArray position_handle_");
+		
+		triangle_vertices_.position(TRIANGLE_VERTICES_DATA_UV_OFFSET);
 		GLES20.glVertexAttribPointer(texture_handle_, 2, GLES20.GL_FLOAT,
 				false, TRIANGLE_VERTICES_DATA_STRIDE_BYTES, triangle_vertices_);
 		checkGlError("glVertexAttribPointer texture_handle_");
@@ -362,10 +444,13 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 		checkGlError("glDrawArrays");
 	}
+
 	private void renderLines() {
 		GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
 		GLES20.glEnable(GLES20.GL_BLEND);
 		GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE);
+
+		GLES20.glLineWidth(lineWidth_ * lineWidthFactor_);
 
 		GLES20.glUseProgram(line_program_);
 		checkGlError("glUseProgram");
@@ -377,7 +462,7 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		GLES20.glEnableVertexAttribArray(line_position_handle_);
 		checkGlError("glEnableVertexAttribArray position_handle_");
 
-		float angle2 = 360.0f * getTimeDeltaByScale(1 * 50000L);
+		float angle2 = 360.0f * getTimeDeltaByScale(1 * 50000L) * rotationSpeedFactor_;
 		Matrix.setRotateM(M_matrix_, 0, angle2, 0, 0, 1.0f);
 		Matrix.multiplyMM(MVP_matrix_, 0, V_matrix_, 0, M_matrix_, 0);
 		Matrix.multiplyMM(MVP_matrix_, 0, proj_matrix_, 0, MVP_matrix_, 0);
@@ -385,33 +470,52 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		delta = getTimeDeltaByScale(1 * 25000L);
 
 		GLES20.glUniform1f(line_delta_handle_, delta);
-		GLES20.glUniform3f(line_mColor_handle_, linesColorRed_, linesColorGreen_, linesColorBlue_);
+		GLES20.glUniform1f(line_brightness_handle_, brightness_
+				* brightnessFactor_);
+		GLES20.glUniform3f(line_mColor_handle_, linesColorRed_,
+				linesColorGreen_, linesColorBlue_);
 		GLES20.glUniformMatrix4fv(line_MVP_matrix_handle_, 1, false,
 				MVP_matrix_, 0);
 		GLES20.glDrawArrays(GLES20.GL_LINES, 0, LINE_COUNT);
 		checkGlError("glDrawArrays lines");
 	}
+
 	private void setupFramebuffer(GL10 gl) {
-		target_texture_ = createTargetTexture(gl, framebuffer_width_,
+		target_texture_ = new int[2];
+		target_texture_[0] = createTargetTexture(gl, framebuffer_width_,
 				framebuffer_height_);
-		if (target_texture_ == 0) {
+		if (target_texture_[0] == 0) {
 			Log.e(TAG, "Could not create render texture");
 			throw new RuntimeException("Could not create render texture");
 		}
+		target_texture_[1] = createTargetTexture(gl, framebuffer_width_,
+				framebuffer_height_);
+		if (target_texture_[1] == 0) {
+			Log.e(TAG, "Could not create second render texture");
+			throw new RuntimeException("Could not create second render texture");
+		}
 
-		framebuffer_ = createFrameBuffer(gl, framebuffer_width_,
-				framebuffer_height_, target_texture_);
-		if (framebuffer_ == 0) {
+		framebuffer_ = new int[2];
+		framebuffer_[0] = createFrameBuffer(gl, framebuffer_width_,
+				framebuffer_height_, target_texture_[0]);
+		if (framebuffer_[0] == 0) {
 			Log.e(TAG, "Could not create frame buffer");
 			throw new RuntimeException("Could not create frame buffer");
 		}
+		
+		framebuffer_[1] = createFrameBuffer(gl, framebuffer_width_,
+				framebuffer_height_, target_texture_[1]);
+		if (framebuffer_[0] == 0) {
+			Log.e(TAG, "Could not create second frame buffer");
+			throw new RuntimeException("Could not create second frame buffer");
+		}
 	}
+
 	private void setupLinesShader() {
 		line_program_ = createProgram(line_vertex_shader_,
 				line_fragment_shader_);
 		if (line_program_ == 0) {
-			throw new RuntimeException(
-				"Line shader compilation failed");
+			throw new RuntimeException("Line shader compilation failed");
 
 		}
 		line_position_handle_ = GLES20.glGetAttribLocation(line_program_,
@@ -421,24 +525,33 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 			throw new RuntimeException(
 					"Could not get attrib location for aPosition");
 		}
-		
+
 		texture_loc_ = GLES20.glGetUniformLocation(program_, "sTexture");
 		checkGlError("glGetAttribLocation sTexture");
 
-		line_delta_handle_ = GLES20.glGetUniformLocation(line_program_, "delta");
+		line_delta_handle_ = GLES20
+				.glGetUniformLocation(line_program_, "delta");
 		checkGlError("glGetAttribLocation delta");
 		if (line_delta_handle_ == -1) {
 			throw new RuntimeException(
 					"Could not get attrib location for delta");
 		}
-		
-		line_mColor_handle_ = GLES20.glGetUniformLocation(line_program_, "mColor");
+
+		line_brightness_handle_ = GLES20.glGetUniformLocation(line_program_,
+				"brightness");
+		checkGlError("glGetAttribLocation brightness");
+		if (line_brightness_handle_ == -1) {
+			throw new RuntimeException(
+					"Could not get attrib location for brightness");
+		}
+
+		line_mColor_handle_ = GLES20.glGetUniformLocation(line_program_,
+				"mColor");
 		checkGlError("glGetAttribLocation mColor");
 		if (line_mColor_handle_ == -1) {
 			throw new RuntimeException(
 					"Could not get attrib location for mColor");
 		}
-		
 
 		line_MVP_matrix_handle_ = GLES20.glGetUniformLocation(line_program_,
 				"uMVPMatrix");
@@ -448,11 +561,11 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 					"Could not get attrib location for uMVPMatrix");
 		}
 	}
+
 	private void setupQuadShader() {
 		program_ = createProgram(vertex_shader_, fragment_shader_);
 		if (program_ == 0) {
-			throw new RuntimeException(
-				"Quad shader compilation failed");
+			throw new RuntimeException("Quad shader compilation failed");
 		}
 		position_handle_ = GLES20.glGetAttribLocation(program_, "aPosition");
 		checkGlError("glGetAttribLocation aPosition");
@@ -473,6 +586,12 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		if (MVP_matrix_handle_ == -1) {
 			throw new RuntimeException(
 					"Could not get attrib location for uMVPMatrix");
+		}
+
+		blur_handle_ = GLES20.glGetUniformLocation(program_, "blur");
+		checkGlError("glGetAttribLocation blur");
+		if (blur_handle_ == -1) {
+			throw new RuntimeException("Could not get attrib location for blur");
 		}
 	}
 
