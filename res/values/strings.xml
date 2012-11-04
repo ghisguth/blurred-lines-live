@@ -18,5 +18,21 @@
     <string name="settings_linewidth_summary">Line size</string>
     <string name="settings_rotationspeed_title">Rotation</string>
     <string name="settings_rotationspeed_summary">Rotation speed</string>
+    <string name="settings_speed_title">Animation</string>
+    <string name="settings_speed_summary">Animation speed</string>
     <string name="settings_value">Value:</string>
+    <string name="settings_general_preferences">General</string>
+    <string name="settings_general_compatibility">Compatibility and performance</string>
+    <string name="settings_use_one_framebuffer_title">Use single framebuffer</string>
+    <string name="settings_use_one_framebuffer_summary_on">Use one render texture and framebuffer. Uses less resources, but may not work on some devices like Nexus 7.</string>
+    <string name="settings_use_one_framebuffer_summary_off">Use two render texture and framebuffer. Uses more resources, but will work on all devices.</string>
+    <string name="settings_use_non_square_textures_title">Use not square textures</string>
+    <string name="settings_use_non_square_textures_summary_on">Will use rectangular textures. Better performance, but may not work on some old devices.</string>
+    <string name="settings_use_non_square_textures_summary_off">Use square textures only. Uses more resources, but will work on all devices.</string>
+    <string name="settings_use_non_power_of_two_textures_title">Use not power of two textures</string>
+    <string name="settings_use_non_power_of_two_textures_summary_on">Use non power of two textures. Better performance/visual, but may not work on some devices.</string>
+    <string name="settings_use_non_power_of_two_textures_summary_off">Use non power of two textures only. Uses more resources, but will work on all devices.</string>
+    <string name="settings_use_smaller_textures_title">Reduce internal framebuffer size</string>
+    <string name="settings_use_smaller_textures_summary_on">Will use smaller render textures. Better performance, but may look not as good as on full resoulution.</string>
+    <string name="settings_use_smaller_textures_summary_off">Use full texture resolution.</string>
 </resources>

@@ -89,9 +89,7 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 	private int texture_handle_;
 	private int texture_loc_;
 	private int line_MVP_matrix_handle_;
-
 	private int line_position_handle_;
-
 	private int line_delta_handle_;
 	private int line_mColor_handle_;
 	private int line_brightness_handle_;
@@ -115,14 +113,22 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 	private float linesColorRed_ = 1.0f;
 	private float linesColorGreen_ = 1.0f;
 	private float linesColorBlue_ = 1.0f;
+
 	private float blur_ = 0.86f;
 	private float blurFactor_ = 1.0f;
 	private float brightness_ = 0.15f;
 	private float brightnessFactor_ = 1.0f;
 	private float lineWidth_ = 1.0f;
 	private float lineWidthFactor_ = 1.0f;
+
+	private float speedFactor_ = 1.0f;
 	private float rotationSpeedFactor_ = 1.0f;
-	
+
+	private boolean useSmallerTextures_ = false;
+	private boolean useNonPowerOfTwoTextures_ = false;
+	private boolean useNonSquareTextures_ = false;
+	private boolean useOneFramebuffer_ = false;
+
 	private boolean resetFramebuffers_ = false;
 
 	private static String TAG = "GLES20LinesRenderer";
@@ -176,17 +182,35 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 				int blurInt = sharedPreferences.getInt("blur", 127);
 				int brightnessInt = sharedPreferences.getInt("brightness", 127);
 				int lineWidthInt = sharedPreferences.getInt("linewidth", 127);
-				int rotationSpeedInt = sharedPreferences.getInt("rotationspeed", 127);
-				
+				int rotationSpeedInt = sharedPreferences.getInt(
+						"rotationspeed", 127);
+				int speedInt = sharedPreferences.getInt("speed", 127);
+
+				boolean useSmallerTextures = sharedPreferences.getBoolean(
+						"use_smaller_textures", false);
+				boolean useNonPowerOfTwoTextures = sharedPreferences
+						.getBoolean("use_non_power_of_two_textures", false);
+				boolean useNonSquareTextures = sharedPreferences.getBoolean(
+						"use_non_square_textures", false);
+				boolean useOneFramebuffer = sharedPreferences.getBoolean(
+						"use_one_framebuffer", false);
 
 				Log.i(TAG, "PREF back = " + backgroundInt + " lines = "
 						+ linesInt + " blur = " + blurInt + " brightness = "
-						+ brightnessInt + " linewidth = " + lineWidthInt + " rotation = " + rotationSpeedInt);
+						+ brightnessInt + " linewidth = " + lineWidthInt
+						+ " rotation = " + rotationSpeedInt + " speed = "
+						+ speedInt);
+
 				renderer_.setColors(backgroundInt, linesInt);
 				renderer_.setBlur(blurInt);
 				renderer_.setBrightness(brightnessInt);
 				renderer_.setLineWidth(lineWidthInt);
-				renderer_.setRotationSpeed(rotationSpeedInt);				
+				renderer_.setRotationSpeed(rotationSpeedInt);
+				renderer_.setSpeed(speedInt);
+
+				renderer_.setCompatibilitySettings(useSmallerTextures,
+						useNonPowerOfTwoTextures, useNonSquareTextures,
+						useOneFramebuffer);
 
 			} catch (final Exception e) {
 				Log.e(TAG, "PREF init error: " + e);
@@ -209,8 +233,8 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		float scale = 1.0f / 127.0f;
 		float scaledValue = scale * (value - 127) * multiplier;
 		float result = (float) Math.exp(scaledValue);
-		Log.i(TAG, "setLineWidth value = " + value + " scaledValue = "
-				+ scaledValue + " result = " + result);
+		// Log.i(TAG, "pref value = " + value + " scaledValue = "
+		// + scaledValue + " result = " + result);
 		return result;
 	}
 
@@ -229,12 +253,23 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 			lineWidthFactor_ = 0.01f;
 		}
 	}
-	
+
 	public void setRotationSpeed(int value) {
 		rotationSpeedFactor_ = getScaledFactor(value, 1.0f);
 	}
-	
-	
+
+	public void setSpeed(int value) {
+		speedFactor_ = getScaledFactor(value, 1.0f);
+	}
+
+	public void setCompatibilitySettings(boolean useSmallerTextures,
+			boolean useNonPowerOfTwoTextures, boolean useNonSquareTextures,
+			boolean useOneFramebuffer) {
+		useSmallerTextures_ = useSmallerTextures;
+		useNonPowerOfTwoTextures_ = useNonPowerOfTwoTextures;
+		useNonSquareTextures_ = useNonSquareTextures;
+		useOneFramebuffer_ = useOneFramebuffer;
+	}
 
 	private void checkGlError(String op) {
 		int error;
@@ -334,19 +369,27 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		GLES20.glClearColor(backgroundColorRed_, backgroundColorGreen_,
 				backgroundColorBlue_, 1.0f);
 
-		if(resetFramebuffers_) {
+		if (resetFramebuffers_) {
 			resetFramebuffers_ = false;
-			
-			GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer_[1 - target_texture_index_]);
-			GLES20.glViewport(0, 0, framebuffer_width_, framebuffer_height_);
-			GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+
+			if (!useOneFramebuffer_) {
+				GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,
+						framebuffer_[1 - target_texture_index_]);
+				GLES20.glViewport(0, 0, framebuffer_width_, framebuffer_height_);
+				GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+			}
 		}
-		
-		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer_[target_texture_index_]);
+
+		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,
+				framebuffer_[target_texture_index_]);
 		GLES20.glViewport(0, 0, framebuffer_width_, framebuffer_height_);
 		GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-		renderBlurTexture(1 - target_texture_index_);
+		if (!useOneFramebuffer_) {
+			renderBlurTexture(1 - target_texture_index_);
+		} else {
+			renderBlurTexture(target_texture_index_);
+		}
 		renderLines();
 
 		GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
@@ -354,8 +397,10 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 
 		GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 		renderBlurTexture(target_texture_index_);
-		
-		target_texture_index_ = 1 - target_texture_index_; 
+
+		if (!useOneFramebuffer_) {
+			target_texture_index_ = 1 - target_texture_index_;
+		}
 	}
 
 	@Override
@@ -376,32 +421,48 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		surface_width_ = width;
 		surface_height_ = height;
 
-		// lets make framebuffer have power of 2 dimension
-		// and it should be less then display size
-		framebuffer_width_ = 1 << (int) (Math.log(width) / Math.log(2));
-		if (framebuffer_width_ == surface_width_)
-			framebuffer_width_ >>= 1;
-		framebuffer_height_ = 1 << (int) (Math.log(height) / Math.log(2));
-		if (framebuffer_height_ == surface_height_)
-			framebuffer_height_ >>= 1;
-
-		// http://code.google.com/p/android/issues/detail?id=14835
-		// The size of the FBO should have square size.
-		if (framebuffer_height_ > framebuffer_width_) {
-			framebuffer_width_ = framebuffer_height_;
-		} else if (framebuffer_width_ > framebuffer_height_) {
-			framebuffer_height_ = framebuffer_width_;
+		if (!useNonPowerOfTwoTextures_) {
+			// lets make framebuffer have power of 2 dimension
+			// and it should be less then display size
+			framebuffer_width_ = 1 << (int) (Math.log(width) / Math.log(2));
+			if (framebuffer_width_ == surface_width_)
+				framebuffer_width_ >>= 1;
+			framebuffer_height_ = 1 << (int) (Math.log(height) / Math.log(2));
+			if (framebuffer_height_ == surface_height_)
+				framebuffer_height_ >>= 1;
+		} else {
+			framebuffer_width_ = surface_width_;
+			framebuffer_height_ = surface_height_;
 		}
-		
-		// Log.i("BL***","framebuffer_width_=" +
-		// framebuffer_width_+" framebuffer_height_="+framebuffer_height_);
+
+		if (!useNonSquareTextures_) {
+			// http://code.google.com/p/android/issues/detail?id=14835
+			// The size of the FBO should have square size.
+			if (framebuffer_height_ > framebuffer_width_) {
+				framebuffer_width_ = framebuffer_height_;
+			} else if (framebuffer_width_ > framebuffer_height_) {
+				framebuffer_height_ = framebuffer_width_;
+			}
+		}
+
+		if (useSmallerTextures_) {
+			framebuffer_width_ >>= 1;
+			framebuffer_height_ >>= 1;
+		}
+
+		Log.i("BL***", "framebuffer_width_=" + framebuffer_width_
+				+ " framebuffer_height_=" + framebuffer_height_);
 
 		updateTargetTexture(gl, target_texture_[0], framebuffer_width_,
 				framebuffer_height_);
-		updateTargetTexture(gl, target_texture_[1], framebuffer_width_,
-				framebuffer_height_);
+
+		if (!useOneFramebuffer_) {
+			updateTargetTexture(gl, target_texture_[1], framebuffer_width_,
+					framebuffer_height_);
+		}
+
 		target_texture_index_ = 0;
-		resetFramebuffers_ = true;		
+		resetFramebuffers_ = true;
 	}
 
 	@Override
@@ -421,7 +482,8 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		checkGlError("glUseProgram");
 
 		GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-		GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target_texture_[textureIndex]);
+		GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,
+				target_texture_[textureIndex]);
 		GLES20.glUniform1i(texture_loc_, 0);
 		GLES20.glUniform1f(blur_handle_, blur_ * blurFactor_);
 
@@ -429,10 +491,10 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		GLES20.glVertexAttribPointer(position_handle_, 3, GLES20.GL_FLOAT,
 				false, TRIANGLE_VERTICES_DATA_STRIDE_BYTES, triangle_vertices_);
 		checkGlError("glVertexAttribPointer maPosition");
-		
+
 		GLES20.glEnableVertexAttribArray(position_handle_);
 		checkGlError("glEnableVertexAttribArray position_handle_");
-		
+
 		triangle_vertices_.position(TRIANGLE_VERTICES_DATA_UV_OFFSET);
 		GLES20.glVertexAttribPointer(texture_handle_, 2, GLES20.GL_FLOAT,
 				false, TRIANGLE_VERTICES_DATA_STRIDE_BYTES, triangle_vertices_);
@@ -462,12 +524,12 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 		GLES20.glEnableVertexAttribArray(line_position_handle_);
 		checkGlError("glEnableVertexAttribArray position_handle_");
 
-		float angle2 = 360.0f * getTimeDeltaByScale(1 * 50000L) * rotationSpeedFactor_;
+		float angle2 = 360.0f * getTimeDeltaByScale((long) (1 * 50000L / speedFactor_ / rotationSpeedFactor_));
 		Matrix.setRotateM(M_matrix_, 0, angle2, 0, 0, 1.0f);
 		Matrix.multiplyMM(MVP_matrix_, 0, V_matrix_, 0, M_matrix_, 0);
 		Matrix.multiplyMM(MVP_matrix_, 0, proj_matrix_, 0, MVP_matrix_, 0);
 
-		delta = getTimeDeltaByScale(1 * 25000L);
+		delta = getTimeDeltaByScale((long) (1 * 25000L / speedFactor_));
 
 		GLES20.glUniform1f(line_delta_handle_, delta);
 		GLES20.glUniform1f(line_brightness_handle_, brightness_
@@ -488,11 +550,14 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 			Log.e(TAG, "Could not create render texture");
 			throw new RuntimeException("Could not create render texture");
 		}
-		target_texture_[1] = createTargetTexture(gl, framebuffer_width_,
-				framebuffer_height_);
-		if (target_texture_[1] == 0) {
-			Log.e(TAG, "Could not create second render texture");
-			throw new RuntimeException("Could not create second render texture");
+		if (!useOneFramebuffer_) {
+			target_texture_[1] = createTargetTexture(gl, framebuffer_width_,
+					framebuffer_height_);
+			if (target_texture_[1] == 0) {
+				Log.e(TAG, "Could not create second render texture");
+				throw new RuntimeException(
+						"Could not create second render texture");
+			}
 		}
 
 		framebuffer_ = new int[2];
@@ -502,12 +567,15 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 			Log.e(TAG, "Could not create frame buffer");
 			throw new RuntimeException("Could not create frame buffer");
 		}
-		
-		framebuffer_[1] = createFrameBuffer(gl, framebuffer_width_,
-				framebuffer_height_, target_texture_[1]);
-		if (framebuffer_[0] == 0) {
-			Log.e(TAG, "Could not create second frame buffer");
-			throw new RuntimeException("Could not create second frame buffer");
+
+		if (!useOneFramebuffer_) {
+			framebuffer_[1] = createFrameBuffer(gl, framebuffer_width_,
+					framebuffer_height_, target_texture_[1]);
+			if (framebuffer_[0] == 0) {
+				Log.e(TAG, "Could not create second frame buffer");
+				throw new RuntimeException(
+						"Could not create second frame buffer");
+			}
 		}
 	}
 
