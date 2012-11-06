@@ -195,11 +195,12 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 				boolean useOneFramebuffer = sharedPreferences.getBoolean(
 						"use_one_framebuffer", false);
 
-				Log.i(TAG, "PREF back = " + backgroundInt + " lines = "
-						+ linesInt + " blur = " + blurInt + " brightness = "
-						+ brightnessInt + " linewidth = " + lineWidthInt
-						+ " rotation = " + rotationSpeedInt + " speed = "
-						+ speedInt);
+				/*
+				 * Log.i(TAG, "PREF back = " + backgroundInt + " lines = " +
+				 * linesInt + " blur = " + blurInt + " brightness = " +
+				 * brightnessInt + " linewidth = " + lineWidthInt +
+				 * " rotation = " + rotationSpeedInt + " speed = " + speedInt);
+				 */
 
 				renderer_.setColors(backgroundInt, linesInt);
 				renderer_.setBlur(blurInt);
@@ -307,6 +308,7 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 
 		int pixelShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentSource);
 		if (pixelShader == 0) {
+			GLES20.glDeleteShader(vertexShader);
 			return 0;
 		}
 
@@ -323,9 +325,16 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 				Log.e(TAG, "Could not link program: ");
 				Log.e(TAG, GLES20.glGetProgramInfoLog(program));
 				GLES20.glDeleteProgram(program);
+				checkGlError("glDeleteProgram");
 				program = 0;
 			}
 		}
+
+		GLES20.glDeleteShader(vertexShader);
+		checkGlError("glDeleteShader vertexShader");
+		GLES20.glDeleteShader(pixelShader);
+		checkGlError("glDeleteShader pixelShader");
+
 		return program;
 	}
 
@@ -450,8 +459,8 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 			framebuffer_height_ >>= 1;
 		}
 
-		Log.i("BL***", "framebuffer_width_=" + framebuffer_width_
-				+ " framebuffer_height_=" + framebuffer_height_);
+		// Log.i("BL***", "framebuffer_width_=" + framebuffer_width_
+		// + " framebuffer_height_=" + framebuffer_height_);
 
 		updateTargetTexture(gl, target_texture_[0], framebuffer_width_,
 				framebuffer_height_);
@@ -543,6 +552,28 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 	}
 
 	private void setupFramebuffer(GL10 gl) {
+		if (target_texture_ != null) {
+			if (target_texture_[0] != 0) {
+				GLES20.glDeleteTextures(1, target_texture_, 0);
+				checkGlError("glDeleteTextures target_texture_ 0");
+			}
+			if (target_texture_[1] != 0) {
+				GLES20.glDeleteTextures(1, target_texture_, 1);
+				checkGlError("glDeleteTextures target_texture_ 1");
+			}
+		}
+
+		if (framebuffer_ != null) {
+			if (framebuffer_[0] != 0) {
+				GLES20.glDeleteFramebuffers(1, framebuffer_, 0);
+				checkGlError("glDeleteFramebuffers framebuffer_ 0");
+			}
+			if (framebuffer_[1] != 0) {
+				GLES20.glDeleteFramebuffers(1, framebuffer_, 1);
+				checkGlError("glDeleteFramebuffers framebuffer_ 1");
+			}
+		}
+
 		target_texture_ = new int[2];
 		target_texture_[0] = createTargetTexture(gl, framebuffer_width_,
 				framebuffer_height_);
@@ -580,6 +611,12 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 	}
 
 	private void setupLinesShader() {
+		// Release resources
+		if (line_program_ != 0) {
+			GLES20.glDeleteProgram(line_program_);
+			checkGlError("glDeleteProgram line_program_");
+		}
+
 		line_program_ = createProgram(line_vertex_shader_,
 				line_fragment_shader_);
 		if (line_program_ == 0) {
@@ -631,6 +668,12 @@ public class GLES20LinesRenderer implements GLWallpaperService.Renderer {
 	}
 
 	private void setupQuadShader() {
+		// Release resources
+		if (program_ != 0) {
+			GLES20.glDeleteProgram(program_);
+			checkGlError("glDeleteProgram program_");
+		}
+
 		program_ = createProgram(vertex_shader_, fragment_shader_);
 		if (program_ == 0) {
 			throw new RuntimeException("Quad shader compilation failed");
